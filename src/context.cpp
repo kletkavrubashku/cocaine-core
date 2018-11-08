@@ -309,19 +309,23 @@ public:
     remove(const std::string& name) override {
         const holder_t scoped(*m_log, {{"source", "core"}});
 
-        std::unique_ptr<tcp_actor_t> service;
-
-        m_services.apply([&](service_list_t& list) {
+        auto extract_service = [&](service_list_t& list) -> std::unique_ptr<tcp_actor_t> {
             auto it = std::find_if(list.begin(), list.end(), match{name});
-            if(it != list.end()) {
-                service = std::move(it->second);
-                list.erase(it);
-            } else {
-                throw cocaine::error_t("service '{}' doesn't exist", name);
+            if(it == list.end()) {
+                 return nullptr;
             }
-        });
+            auto service = std::move(it->second);
+            list.erase(it);
+            return service;
+        };
 
-        service->terminate();
+        // TODO: Terminate unpublished services too
+        auto service = m_services.apply(extract_service);
+        if (service) {
+            service->terminate();
+        } else if (!(service = extract_service(m_unpublished))) {
+            throw cocaine::error_t("service '{}' doesn't exist", name);
+        }
 
         COCAINE_LOG_DEBUG(m_log, "service has been stopped", {
             { "service", name }
@@ -389,8 +393,8 @@ public:
         m_config->services().each([&](const std::string& name, const config_t::component_t&){
             try {
                 actors.push_back(remove(name));
-            } catch (...) {
-                // A service might be absent because it has failed to start during the bootstrap.
+            } catch (const std::exception& e) {
+                COCAINE_LOG_WARNING(m_log, "termination of service '{}' has failed: {}", name, e);
             }
         });
 
