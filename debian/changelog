@@ -1,3 +1,9 @@
+cocaine-core (0.12.14.30) unstable; urgency=medium
+
+  * fix: clear unpublished services in termination
+
+ -- Artem Selishchev <arselishev@gmail.com>  Thu, 08 Nov 2018 21:07:13 +0300
+
 cocaine-core (0.12.14.29) unstable; urgency=low
 
   * Fixed: throw exception from execution_unit_t if terminating
