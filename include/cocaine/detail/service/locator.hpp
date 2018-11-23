@@ -28,6 +28,8 @@
 #include "cocaine/dynamic.hpp"
 #include "cocaine/detail/service/locator/routing.hpp"
 
+#include "cocaine/executor/asio.hpp"
+
 #include "cocaine/idl/context.hpp"
 #include "cocaine/idl/locator.hpp"
 
@@ -90,9 +92,6 @@ class locator_t:
     const std::unique_ptr<logging::logger_t> m_log;
     const locator_cfg_t m_cfg;
 
-    // Cluster interconnections.
-    asio::io_service& m_asio;
-
     // Slot for context signals.
     std::shared_ptr<dispatch<io::context_tag>> m_signals;
 
@@ -118,6 +117,9 @@ class locator_t:
 
     // Mapping from uuid to corresponding connection retry timer.
     retry_timers_map_t m_retry_timers;
+
+    // Internal executor
+    executor::owning_asio_t m_executor;
 
 public:
     locator_t(context_t& context, asio::io_service& asio, const std::string& name, const dynamic_t& args);

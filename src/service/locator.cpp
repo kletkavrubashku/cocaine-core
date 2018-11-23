@@ -327,8 +327,7 @@ locator_t::locator_t(context_t& context, io_service& asio, const std::string& na
     dispatch<locator_tag>(name),
     m_context(context),
     m_log(context.log(name)),
-    m_cfg(name, root),
-    m_asio(asio)
+    m_cfg(name, root)
 {
     on<locator::resolve>(std::bind(&locator_t::on_resolve, this, ph::_1, ph::_2));
     on<locator::connect>(std::bind(&locator_t::on_connect, this, ph::_1));
@@ -395,7 +394,7 @@ locator_t::locator_t(context_t& context, io_service& asio, const std::string& na
         throw std::system_error(e.code(), "unable to initialize routing groups");
     }
 
-    context.signal_hub().listen(m_signals, asio);
+    context.signal_hub().listen(m_signals, m_executor.asio());
 }
 
 locator_t::~locator_t() {
@@ -415,7 +414,7 @@ locator_t::prototype() {
 
 io_service&
 locator_t::asio() {
-    return m_asio;
+    return m_executor.asio();
 }
 
 void
@@ -467,8 +466,8 @@ locator_t::link_node_unsafe(const std::string& uuid, const std::vector<asio::ip:
         return;
     }
 
-    auto socket = std::make_shared<tcp::socket>(m_asio);
-    auto connect_timer = std::make_shared<asio::deadline_timer>(m_asio);
+    auto socket = std::make_shared<tcp::socket>(m_executor.asio());
+    auto connect_timer = std::make_shared<asio::deadline_timer>(m_executor.asio());
     auto& uplink = (m_clients.unsafe()[uuid] = {endpoints, nullptr});
 
     connect_timer->expires_from_now(boost::posix_time::seconds(10));
@@ -557,7 +556,7 @@ locator_t::retry_link_node(const std::string& uuid, const std::vector<asio::ip::
         return;
     }
 
-    auto timer = m_retry_timers[uuid] = std::make_shared<asio::deadline_timer>(m_asio);
+    auto timer = m_retry_timers[uuid] = std::make_shared<asio::deadline_timer>(m_executor.asio());
 
     timer->expires_from_now(boost::posix_time::seconds(10));
     timer->async_wait([=](const std::error_code& ec) {
