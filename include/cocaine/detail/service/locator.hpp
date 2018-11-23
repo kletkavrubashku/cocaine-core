@@ -22,6 +22,8 @@
 #ifndef COCAINE_LOCATOR_SERVICE_HPP
 #define COCAINE_LOCATOR_SERVICE_HPP
 
+#include <asio/ip/tcp.hpp>
+
 #include "cocaine/api/cluster.hpp"
 #include "cocaine/api/service.hpp"
 
@@ -85,7 +87,9 @@ class locator_t:
     typedef std::map<std::string, streamed<results::connect>> remote_map_t;
     typedef std::map<std::string, streamed<results::routing>> router_map_t;
 
-    using retry_timers_map_t = std::unordered_map<std::string, std::shared_ptr<asio::deadline_timer>>;
+    using timer_map_t = std::unordered_map<std::string, std::unique_ptr<asio::deadline_timer>>;
+
+    using socket_map_t = std::unordered_map<std::string, std::shared_ptr<asio::ip::tcp::socket>>;
 
     context_t& m_context;
 
@@ -116,7 +120,10 @@ class locator_t:
     synchronized<router_map_t> m_routers;
 
     // Mapping from uuid to corresponding connection retry timer.
-    retry_timers_map_t m_retry_timers;
+    timer_map_t m_retry_timers;
+
+    // Mapping from uuid to corresponding socket. Record lives during the connection.
+    socket_map_t m_sockets;
 
     // Internal executor
     executor::owning_asio_t m_executor;

@@ -398,13 +398,15 @@ locator_t::locator_t(context_t& context, io_service& asio, const std::string& na
 }
 
 locator_t::~locator_t() {
-    // In general we don't need this, because ioloop is stopped before dtor.
     const auto lock = m_clients.synchronize();
 
-    for (auto& timer: m_retry_timers) {
-        timer.second->cancel();
-    }
     m_retry_timers.clear();
+    for (auto& socket: m_sockets) {
+        // nothrow overload
+        std::error_code ec;
+        socket.second->close(ec);
+    }
+    m_sockets.clear();
 }
 
 basic_dispatch_t&
@@ -466,7 +468,7 @@ locator_t::link_node_unsafe(const std::string& uuid, const std::vector<asio::ip:
         return;
     }
 
-    auto socket = std::make_shared<tcp::socket>(m_executor.asio());
+    auto socket = m_sockets[uuid] = std::make_shared<tcp::socket>(m_executor.asio());
     auto connect_timer = std::make_shared<asio::deadline_timer>(m_executor.asio());
     auto& uplink = (m_clients.unsafe()[uuid] = {endpoints, nullptr});
 
@@ -495,8 +497,11 @@ locator_t::link_node_unsafe(const std::string& uuid, const std::vector<asio::ip:
         auto session = m_clients.apply(
             [&](client_map_t& mapping) -> std::shared_ptr<cocaine::session<tcp>>
         {
+            m_sockets.erase(uuid);
+
             if(mapping.count(uuid) == 0) {
                 COCAINE_LOG_ERROR(m_log, "remote disappeared while connecting");
+                connect_timer->cancel();
                 return nullptr;
             }
 
@@ -556,7 +561,7 @@ locator_t::retry_link_node(const std::string& uuid, const std::vector<asio::ip::
         return;
     }
 
-    auto timer = m_retry_timers[uuid] = std::make_shared<asio::deadline_timer>(m_executor.asio());
+    auto& timer = m_retry_timers[uuid] = std::make_unique<asio::deadline_timer>(m_executor.asio());
 
     timer->expires_from_now(boost::posix_time::seconds(10));
     timer->async_wait([=](const std::error_code& ec) {
